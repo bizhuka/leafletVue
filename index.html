@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+
+    <script src="data/houses.geojson"></script>
+    <script src="data/lakes.geojson"></script>
+
+    <style type="text/css">
+        #id_map {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <v-app>
+        <v-navigation-drawer app width=400>
+            <v-row justify="center">
+                <v-expansion-panels accordion>
+                    <v-expansion-panel
+                            v-for="(item,i) in 5"
+                            :key="i"
+                    >
+                        <v-expansion-panel-header>Item</v-expansion-panel-header>
+                        <v-expansion-panel-content>
+                            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut
+                            labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco
+                            laboris nisi ut aliquip ex ea commodo consequat.
+                        </v-expansion-panel-content>
+                    </v-expansion-panel>
+                </v-expansion-panels>
+            </v-row>
+            <v-autocomplete :items="houses"
+                            item-text="fullText"
+                            item-value="pos"
+                            v-on:change="zoomToObject" auto-select-first></v-autocomplete>
+
+            <v-list flat>
+                <v-subheader>REPORTS</v-subheader>
+                <v-list-item-group
+                        v-model="selectedItem"
+                        color="primary"
+                >
+                    <v-list-item
+                            v-for="(item, i) in items"
+                            :key="i"
+                    >
+                        <v-list-item-icon>
+                            <v-icon v-text="item.icon"></v-icon>
+                        </v-list-item-icon>
+                        <v-list-item-content>
+                            <v-list-item-title v-text="item.text"></v-list-item-title>
+                        </v-list-item-content>
+                    </v-list-item>
+                </v-list-item-group>
+            </v-list>
+
+        </v-navigation-drawer>
+
+        <v-app-bar app>
+            app bar
+        </v-app-bar>
+
+        <!-- Sizes your content based upon application components -->
+        <v-main>
+
+            <!-- Provides the application the proper gutter -->
+            <v-container id="id_map">
+                <!-- If using vue-router -->
+                <!-- <router-view></router-view> -->
+            </v-container>
+        </v-main>
+
+        <v-footer app>
+            <v-btn v-on:click="testAdd">Test add</v-btn>
+        </v-footer>
+    </v-app>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+<script>
+
+    var __map = null;
+    var __own_data = {
+        selectedItem: 1,
+        houses: [
+            {
+                pos: null,
+                fullText: 'Test'
+            }
+        ],
+        items: [
+            {text: 'Real-Time', icon: 'mdi-clock'},
+            {text: 'Audience', icon: 'mdi-account'},
+            {text: 'Conversions', icon: 'mdi-flag'}
+        ]
+    };
+
+    function getBuildingLevelColor(etag) {
+        switch (etag) {
+            case '1':
+                return 'green';
+                break;
+            case '2':
+                return 'red';
+                break;
+            case '3':
+                return 'yellow';
+                break;
+            case '4':
+                return 'blue';
+                break;
+            case '5':
+                return 'black';
+                break;
+            default:
+                break;
+        }
+    }
+    function polyStyle(feature) {
+        return {
+            fillColor: getBuildingLevelColor(feature.properties.etag),
+            weight: 2,
+            opacity: 1,
+            color: 'white',
+            dashArray: 3,
+            fillOpacity: 0.7
+        }
+    }
+
+    function forEachFeature(feature, layer) {
+        // Tagging each state poly with their name for the search control.// Tagging each state poly with their name for the search control.
+        layer._leaflet_id = feature.properties.id;
+        var popupContent = "<p><b>УЛИЦА: </b>" + feature.properties.ulica +
+            "</br>ДОМ: " + feature.properties.dom +
+            "</br>ЭТАЖ:" + feature.properties.etag;
+        layer.bindPopup(popupContent);
+        layer.on(
+            {
+                mouseover: highlightFeature,
+                mouseout: resetHighlight,
+                //click: zoomToFeature,
+            }
+        );
+    }
+
+    function highlightFeature(e) {
+        var layer = e.target;
+        layer.setStyle(
+            {
+                weight: 5,
+                color: 'black',
+                fillColor: 'white',
+                fillOpacity: 0.2
+            }
+        );
+        if (!L.Browser.ie && !L.Browser.opera) {
+            layer.bringToFront();
+        }
+    }
+
+    function resetHighlight(e) {
+        window.__housesLayer.resetStyle(e.target);
+    }
+
+    new Vue({
+        el: '#app',
+        vuetify: new Vuetify(),
+
+        data: function () {
+            return __own_data;
+        },
+
+        methods: {
+            testAdd: function (event) {
+                __own_data.items.push({
+                    text: "Ok " + __own_data.items.length, icon: 'mdi-clock'
+                });
+            },
+
+            zoomToObject: function (value) {
+                var obj = value.geoObject;
+                if (!obj) {
+                    obj = value.geoObject = L.geoJSON(value.src, {
+                        onEachFeature: forEachFeature
+                    });
+                    obj.addTo(__map);
+                }
+
+                __map.fitBounds(obj.getBounds());
+            },
+
+            addSearchHelp: function (arrSrc, arrDest, prefix) {
+                for (var i = 0; i < arrSrc.length; i++) {
+                    var props = arrSrc[i].properties;
+
+                    arrDest.push({
+                        pos: {
+                            src: arrSrc[i],
+                            id: prefix + i
+                        },
+                        fullText: props.ulica + " - " + props["№"] + " - " + props.dom
+                    })
+                }
+            }
+        },
+
+        created: function () {
+            __own_data.houses = [];
+
+            this.addSearchHelp(houses.features, __own_data.houses, "H");
+        },
+
+        mounted: function () {
+
+            __map = L.map('id_map').setView([53.274776, 69.400267], 12);
+
+            // Open Street Map
+            var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '...'
+            });
+
+            osmLayer.addTo(__map);
+
+            //add geojson layers to map
+            var lakesLayer = L.geoJson(lakes);
+            window.__housesLayer = L.geoJson(houses
+                , {
+                    style: polyStyle,
+                    // onEachFeature: forEachFeature
+                }
+            );
+
+            //Vector overlays
+            var overlays = {
+                'водоёмы': lakesLayer,
+                'здания': window.__housesLayer
+            };
+            L.control.layers(overlays).addTo(__map);
+        }
+    })
+</script>
+</body>
+</html>
